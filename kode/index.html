@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Monitoring Tanaman Cabai</title>
+
+<!-- CHART.JS -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- FONT AWESOME -->
+<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css">
+
+<style>
+:root{
+  --bg:#e8f5e1;
+  --card:#ffffff;
+  --text:#2e472f;
+  --accent:#2e8b57;
+}
+body.dark{
+  --bg:#0d1f12;
+  --card:#1b3323;
+  --text:#d8f5d8;
+  --accent:#4caf50;
+}
+body{
+  margin:0;
+  font-family:Arial,sans-serif;
+  background:var(--bg);
+  padding:10px;
+  color:var(--text);
+}
+
+/* HEADER */
+.header{
+  background:var(--accent);
+  color:white;
+  padding:14px;
+  border-radius:12px;
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+}
+.battery{
+  text-align:right;
+  font-size:14px;
+}
+#darkBtn{
+  background:#222;
+  color:white;
+  border:none;
+  padding:6px 12px;
+  border-radius:8px;
+  cursor:pointer;
+}
+
+/* CARD */
+.card{
+  background:var(--card);
+  padding:12px;
+  border-radius:12px;
+  margin-top:12px;
+  box-shadow:0 2px 5px rgba(0,0,0,.1);
+}
+
+/* GRID */
+.grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:12px;
+}
+
+/* TABLE */
+.table-wrap{
+  max-height:220px;
+  overflow-y:auto;
+}
+table{
+  width:100%;
+  border-collapse:collapse;
+}
+th,td{
+  border:1px solid var(--accent);
+  padding:6px;
+  font-size:12px;
+  text-align:center;
+}
+th{
+  background:var(--accent);
+  color:white;
+  position:sticky;
+  top:0;
+}
+
+/* ALERT STYLE (SEPERTI GAMBAR) */
+.alert{
+  padding:10px 12px;
+  border-radius:8px;
+  margin-bottom:10px;
+  font-size:13px;
+  line-height:1.4;
+}
+
+.alert.kering{
+  background:#ffbfc0;
+  border-left:6px solid #ff3b3b;
+}
+
+.alert.normal{
+  background:#fff3b0;
+  border-left:6px solid #f2c94c;
+}
+
+.alert.basah{
+  background:#cfe9ff;
+  border-left:6px solid #2f80ff;
+}
+
+.alert b{
+  font-size:14px;
+}
+</style>
+</head>
+
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <b>Monitoring Tanaman Cabai</b>
+
+  <div class="battery">
+    <i id="batteryIcon" class="fa-solid fa-battery-half"></i>
+    <span id="batteryPercent">0%</span><br>
+    <small id="batteryVolt">0.00 V</small>
+  </div>
+
+  <button id="darkBtn">Dark Mode</button>
+</div>
+
+<!-- TABLE -->
+<div class="card">
+<h3>Data Kelembaban Terbaru</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+  <th>No</th>
+  <th>Waktu</th>
+  <th>K1</th>
+  <th>K2</th>
+  <th>K3</th>
+  <th>V</th>
+</tr>
+</thead>
+<tbody id="dataTable"></tbody>
+</table>
+</div>
+</div>
+
+<!-- GRID -->
+<div class="grid">
+
+<!-- GRAFIK -->
+<div class="card">
+<h3>Grafik Kelembaban</h3>
+<canvas id="chart"></canvas>
+</div>
+
+<!-- PERINGATAN -->
+<div class="card">
+<h3>Peringatan</h3>
+<div id="alertBox"></div>
+</div>
+
+</div>
+
+<script>
+let chart;
+
+function batteryIcon(p){
+  let i=document.getElementById("batteryIcon");
+  if(p>=80) i.className="fa-solid fa-battery-full";
+  else if(p>=60) i.className="fa-solid fa-battery-three-quarters";
+  else if(p>=40) i.className="fa-solid fa-battery-half";
+  else if(p>=20) i.className="fa-solid fa-battery-quarter";
+  else i.className="fa-solid fa-battery-empty";
+}
+
+function loadData(){
+fetch("get_data.php")
+.then(r=>r.json())
+.then(data=>{
+  let tb=document.getElementById("dataTable");
+  tb.innerHTML="";
+
+  data.forEach((d,i)=>{
+    tb.innerHTML+=`
+      <tr>
+        <td>${i+1}</td>
+        <td>${d.waktu}</td>
+        <td>${d.k1}%</td>
+        <td>${d.k2}%</td>
+        <td>${d.k3}%</td>
+        <td>${parseFloat(d.tegangan).toFixed(2)}</td>
+      </tr>`;
+  });
+
+  let last=data[data.length-1];
+
+  document.getElementById("batteryPercent").innerText=last.baterai+"%";
+  document.getElementById("batteryVolt").innerText=parseFloat(last.tegangan).toFixed(2)+" V";
+  batteryIcon(parseInt(last.baterai));
+
+  let labels=data.map(d=>d.waktu);
+  let k1=data.map(d=>parseInt(d.k1));
+  let k2=data.map(d=>parseInt(d.k2));
+  let k3=data.map(d=>parseInt(d.k3));
+
+  if(chart) chart.destroy();
+  chart=new Chart(document.getElementById("chart"),{
+    type:"line",
+    data:{
+      labels:labels,
+      datasets:[
+        {label:"K1",data:k1,borderWidth:2},
+        {label:"K2",data:k2,borderWidth:2},
+        {label:"K3",data:k3,borderWidth:2}
+      ]
+    }
+  });
+
+  /* ALERT FINAL */
+  let box=document.getElementById("alertBox");
+  box.innerHTML="";
+
+  [k1,k2,k3].forEach((arr,i)=>{
+    let v=arr[arr.length-1];
+
+    if(v < 50){
+      box.innerHTML+=`
+        <div class="alert kering">
+          <b>Sensor ${i+1}: Kering (${v}%)</b><br>
+          Segera siram tanaman.
+        </div>`;
+    }
+    else if(v >= 50 && v < 70){
+      box.innerHTML+=`
+        <div class="alert normal">
+          <b>Sensor ${i+1}: Normal (${v}%)</b><br>
+          Kelembaban tanah ideal.
+        </div>`;
+    }
+    else{
+      box.innerHTML+=`
+        <div class="alert basah">
+          <b>Sensor ${i+1}: Basah (${v}%)</b><br>
+          Kurangi pemberian air.
+        </div>`;
+    }
+  });
+});
+}
+
+document.getElementById("darkBtn").onclick=()=>document.body.classList.toggle("dark");
+
+loadData();
+setInterval(loadData,5000);
+</script>
+
+</body>
+</html>
